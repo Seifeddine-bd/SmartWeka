@@ -1,0 +1,13 @@
+@relation data
+
+@attribute X numeric
+@attribute Y numeric
+
+@data
+2,8
+5,4
+1,7
+6,9
+7,3
+4,5
+8,6

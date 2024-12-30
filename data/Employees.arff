@@ -1,0 +1,19 @@
+@relation employees
+
+@attribute age numeric
+@attribute salary numeric
+@attribute diploma {Aucun, Licence, Master, Doctorat}
+@attribute experience numeric
+@attribute category {Employe, Cadre, Manager}
+
+@data
+23,3000,Licence,2,Employe
+45,4500,Master,20,Cadre
+31,3500,Licence,8,Employe
+50,7000,Doctorat,25,Manager
+28,2800,Aucun,1,Employe
+38,5200,Master,15,Cadre
+29,3100,Licence,4,Employe
+41,4800,Master,12,Cadre
+55,7500,Doctorat,30,Manager
+25,2700,Aucun,1,Employe
