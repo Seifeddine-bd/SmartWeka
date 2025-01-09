@@ -3,23 +3,26 @@ import weka.core.converters.ConverterUtils.DataSource;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 
+import weka.core.Attribute;
+import weka.core.DenseInstance;
+import weka.core.Instance;
 import main.algorithms.classification.J48Classifier;
 import main.algorithms.classification.KNNClassifier;
 import main.algorithms.clustering.CAHClusterer;
 import main.algorithms.clustering.DBSCANClusterer;
 import main.algorithms.clustering.KMeansClusterer;
+import main.utils.ResultVisualizer;
 
 import java.awt.*;
-import java.awt.event.*;
 import java.io.*;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 
-import weka.core.DistanceFunction;
 import weka.core.Instances;
 import weka.core.converters.ArffLoader;
 import weka.core.converters.CSVLoader;
-@SuppressWarnings("unchecked")
+
 public class MainWindow extends JFrame {
     private JTable dataTable;
     private JComboBox<String> algorithmTypeCombo;
@@ -27,15 +30,18 @@ public class MainWindow extends JFrame {
     private JRadioButton defaultParamsRadio;
     private JRadioButton customParamsRadio;
     private JPanel parameterPanel;
+    private JPanel visualizationPanel ;
     private JTextArea resultsArea;
     private Instances data;
     private Map<String, Object> customParameters; // Store custom parameters
     private JTextField centersField; // To store centers input field reference
+    ResultVisualizer visualizer ;
+
     public MainWindow() {
     	
         setTitle("SmartWeka");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1200, 800);
+        setSize(800, 600);
         setLayout(new BorderLayout(10, 10));
 
         
@@ -67,8 +73,11 @@ public class MainWindow extends JFrame {
         JLabel statusLabel = new JLabel("Ready");
         statusBar.add(statusLabel);
         add(statusBar, BorderLayout.SOUTH);
+        
+        visualizer = new ResultVisualizer();
 
-        resultsArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+
+        resultsArea.setFont(new Font("Serif", Font.ITALIC, 12));
         resultsArea.setMargin(new Insets(5, 5, 5, 5));
         
         customParameters = new HashMap<>();
@@ -82,7 +91,6 @@ public class MainWindow extends JFrame {
     
     }
     
-
     
     private void setupMenuBar() {
         JMenuBar menuBar = new JMenuBar();
@@ -180,10 +188,10 @@ public class MainWindow extends JFrame {
         parameterPanel.setVisible(false);
         
         // Control buttons
-        JButton setupButton = new JButton("Setup");
+        JButton refreshButton = new JButton("Refresh");
         JButton runButton = new JButton("Run");
         
-        setupButton.addActionListener(e -> validateSetup());
+        refreshButton.addActionListener(e -> refresh());
         runButton.addActionListener(e -> runAlgorithm());
 
         // Add components to panel
@@ -214,7 +222,7 @@ public class MainWindow extends JFrame {
         
         gbc.gridy = 5;
         gbc.gridwidth = 1;
-        algoPanel.add(setupButton, gbc);
+        algoPanel.add(refreshButton, gbc);
         
         gbc.gridx = 1;
         algoPanel.add(runButton, gbc);
@@ -222,10 +230,12 @@ public class MainWindow extends JFrame {
         container.add(algoPanel, BorderLayout.SOUTH);
     }
 
+
     private void setupResultsPanel(JPanel container) {
+        // Create results panel
         JPanel resultsPanel = new JPanel(new BorderLayout(5, 5));
         resultsPanel.setBorder(BorderFactory.createTitledBorder("Results"));
-
+        resultsPanel.setPreferredSize(new Dimension(400, 300)); // Set fixed size for results panel
         resultsArea = new JTextArea();
         resultsArea.setEditable(false);
         JScrollPane resultsScroll = new JScrollPane(resultsArea);
@@ -236,7 +246,20 @@ public class MainWindow extends JFrame {
         resultsPanel.add(resultsScroll, BorderLayout.CENTER);
         resultsPanel.add(saveButton, BorderLayout.SOUTH);
         
-        container.add(resultsPanel);
+        // Create visualization panel
+        visualizationPanel = new JPanel(new BorderLayout(5, 5));
+        visualizationPanel.setBorder(BorderFactory.createTitledBorder("Visualization"));
+        visualizationPanel.setPreferredSize(new Dimension(400, 300)); // Set fixed size for visualization panel
+        JTextArea visualizationLabel = new JTextArea();
+        visualizationPanel.add(visualizationLabel, BorderLayout.CENTER);
+        
+        // Create a Box to hold the results and visualization panels
+        Box box = Box.createVerticalBox();
+        box.add(resultsPanel);
+        box.add(visualizationPanel);
+        
+        // Add the box to the container
+        container.add(box);
     }
 
     private void updateSpecificAlgorithms() {
@@ -282,7 +305,6 @@ public class MainWindow extends JFrame {
         }
     }
  
-
     private void loadData() {
         JFileChooser fileChooser = new JFileChooser();
         if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
@@ -334,7 +356,6 @@ public class MainWindow extends JFrame {
         dataTable.setModel(model);
     }
 
-   
     public  void pointsData() {
         try {
             // Define the path to the 'data' folder
@@ -387,9 +408,7 @@ public class MainWindow extends JFrame {
             System.err.println("Error reading ARFF files.");
             e.printStackTrace();
         }}
-
-    
-    
+   
     private void showCustomParametersDialog() {
         if (specificAlgorithmCombo.getSelectedItem() == null) {
             JOptionPane.showMessageDialog(this, 
@@ -418,7 +437,7 @@ public class MainWindow extends JFrame {
                 break;
         }
     }
-    
+  
 
     private void showKNNParams() {
         JTextField kField = new JTextField("5");
@@ -449,6 +468,58 @@ public class MainWindow extends JFrame {
         }
     }
 
+    private Instance newIndividuKNN() {
+        if (data == null) {
+            JOptionPane.showMessageDialog(this, "Dataset is not loaded. Please load a dataset first.",
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+
+        // Prepare input fields for the user
+        int numAttributes = data.numAttributes() - 1; // Exclude class attribute
+        String[] attributeNames = new String[numAttributes];
+        for (int i = 0; i < numAttributes; i++) {
+            attributeNames[i] = data.attribute(i).name();
+        }
+
+        JTextField[] inputFields = new JTextField[numAttributes];
+        JPanel inputPanel = new JPanel(new GridLayout(numAttributes, 2));
+        for (int i = 0; i < numAttributes; i++) {
+            inputPanel.add(new JLabel(attributeNames[i] + ":"));
+            inputFields[i] = new JTextField();
+            inputPanel.add(inputFields[i]);
+        }
+
+        // Display dialog to collect input
+        int result = JOptionPane.showConfirmDialog(this, inputPanel,
+                "Enter values for the new individual", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+
+        if (result == JOptionPane.OK_OPTION) {
+            try {
+                // Create a new instance
+            	DenseInstance newInstance = new DenseInstance(numAttributes + 1); // +1 for class attribute
+                newInstance.setDataset(data); // Attach dataset to include attribute information
+
+                for (int i = 0; i < numAttributes; i++) {
+                    double value = Double.parseDouble(inputFields[i].getText());
+                    newInstance.setValue(i, value);
+                }
+
+                return newInstance;
+
+            } catch (NumberFormatException ex) {
+                JOptionPane.showMessageDialog(this, "Please enter valid numeric values.",
+                        "Input Error", JOptionPane.ERROR_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this, "Error creating new instance: " + ex.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+
+        return null;
+    }
+
+    /*
     private void showKMeansParams() {
         JTextField numClassesField = new JTextField("3");
         centersField = new JTextField(""); // Field for centers file path
@@ -503,9 +574,112 @@ public class MainWindow extends JFrame {
             defaultParamsRadio.setSelected(true);
         }
     }
+*/
+
+    private void showKMeansParams() {
+        JTextField numClassesField = new JTextField("3");
+        centersField = new JTextField(""); // Field for centers input (file path or comma-separated values)
+        JButton browseCentersButton = new JButton("Browse");
+        String[] metrics = {"EUCLIDEAN", "MANHATTAN"};
+        JComboBox<String> metricCombo = new JComboBox<>(metrics);
+
+        // Panel for initial centers input
+        JPanel centersPanel = new JPanel(new BorderLayout(5, 0));
+        centersPanel.add(centersField, BorderLayout.CENTER);
+        centersPanel.add(browseCentersButton, BorderLayout.EAST);
+
+        browseCentersButton.addActionListener(e -> browseCentersFile());
+
+        Object[] message = {
+            "Nombre de classes:", numClassesField,
+            "Centres initiaux (fichier ou valeurs séparées par des virgules):", centersPanel,
+            "Métrique de distance:", metricCombo
+        };
+
+        int option = JOptionPane.showConfirmDialog(this, message,
+            "Paramètres K-means", JOptionPane.OK_CANCEL_OPTION);
+
+        if (option == JOptionPane.OK_OPTION) {
+            try {
+                int numClasses = Integer.parseInt(numClassesField.getText());
+                String metric = (String) metricCombo.getSelectedItem();
+
+                customParameters.put("numClasses", numClasses);
+                customParameters.put("metric", KMeansClusterer.DistanceMetric.valueOf(metric));
+
+                // Handle initial centers input
+                if (!centersField.getText().isEmpty()) {
+                    Instances centers;
+                    File centersFile = new File(centersField.getText());
+                    if (centersFile.exists()) {
+                        // Load centers from file
+                        centers = loadCenters(centersFile);
+                    } else {
+                        // Parse centers from the input text
+                        centers = parseCentersFromInput(centersField.getText());
+                    }
+
+                    // Validate attribute count
+                    if (centers.numAttributes() != data.numAttributes()) {
+                        throw new Exception("Mismatch between dataset attributes and initial centers.");
+                    }
+
+                    // Check if number of centers matches numClasses
+                    if (centers.numInstances() != numClasses) {
+                        throw new Exception("Number of initial centers must equal the number of classes.");
+                    }
+
+                    customParameters.put("initialCenters", centers);
+                }
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this,
+                    "Entrée invalide. Utilisation des paramètres par défaut.",
+                    "Erreur", JOptionPane.ERROR_MESSAGE);
+                defaultParamsRadio.setSelected(true);
+            } catch (Exception e) {
+                JOptionPane.showMessageDialog(this,
+                    "Erreur lors du chargement des centres: " + e.getMessage(),
+                    "Erreur", JOptionPane.ERROR_MESSAGE);
+                defaultParamsRadio.setSelected(true);
+            }
+        } else {
+            defaultParamsRadio.setSelected(true);
+        }
+    }
+
+    // Parse centers dynamically from text input
+    private Instances parseCentersFromInput(String input) throws Exception {
+        if (data == null) {
+            throw new Exception("Dataset not loaded. Load the dataset first.");
+        }
+
+        int numAttributes = data.numAttributes(); // Dynamically determine the number of attributes
+        String[] rows = input.split(";");
+        ArrayList<Attribute> attributes = new ArrayList<>();
+        for (int i = 0; i < numAttributes; i++) {
+            attributes.add(data.attribute(i)); // Use the dataset's attributes
+        }
+
+        Instances centers = new Instances("InitialCenters", attributes, rows.length);
+
+        for (String row : rows) {
+            String[] values = row.split(",");
+            if (values.length != numAttributes) {
+                throw new Exception("Invalid number of attributes in input: " + row);
+            }
+            double[] instanceValues = new double[numAttributes];
+            for (int i = 0; i < numAttributes; i++) {
+                instanceValues[i] = Double.parseDouble(values[i].trim());
+            }
+            centers.add(new DenseInstance(1.0, instanceValues));
+        }
+
+        return centers;
+    }
 
 
-    private void showDBSCANParams() {
+
+private void showDBSCANParams() {
         JTextField epsilonField = new JTextField("0.1");
         JTextField minPtsField = new JTextField("6");
 
@@ -562,10 +736,7 @@ public class MainWindow extends JFrame {
         }
     }
 
-   
-
-    
-    
+       
     private void validateSetup() {
         if (data == null) {
             JOptionPane.showMessageDialog(this, "Please load data first.", "Validation Error", JOptionPane.WARNING_MESSAGE);
@@ -584,9 +755,7 @@ public class MainWindow extends JFrame {
 
         JOptionPane.showMessageDialog(this, "Setup validated successfully!", "Validation", JOptionPane.INFORMATION_MESSAGE);
     }
-
- 
-    
+   
     
     private void browseCentersFile() {
         JFileChooser fileChooser = new JFileChooser();
@@ -617,8 +786,6 @@ public class MainWindow extends JFrame {
         return centers;
     }
 
-    
-    
     private void runAlgorithm() {
         if (data == null) {
             JOptionPane.showMessageDialog(this, "Please load data first.",
@@ -628,6 +795,7 @@ public class MainWindow extends JFrame {
         
         String selectedAlgorithm = (String) specificAlgorithmCombo.getSelectedItem();
         StringBuilder resultsBuilder = new StringBuilder();
+        visualizationPanel.removeAll();
 
         try {
             if (customParamsRadio.isSelected() && customParameters.isEmpty()) {
@@ -635,17 +803,63 @@ public class MainWindow extends JFrame {
             }
 
             switch (selectedAlgorithm) {
-                case "Decision Tree":
-                    J48Classifier tree;
-                 
-                    tree = new J48Classifier();
-                    
-                    tree.train(data);
-                    resultsBuilder.append(tree.getModelSummary());
-                    break;
-                    
-                case "KNN":
+           
+            case "Decision Tree":
+                J48Classifier tree = new J48Classifier();
+                tree.train(data); // Train the classifier with the data
+                visualizationPanel.removeAll();
+                // Append model summary to results
+                resultsBuilder.append(tree.getModelSummary());
+
+                // Create an instance of ResultVisualizer and visualize the decision tree
+                visualizer.visualizeDecisionTree(data); // Ensure you're passing the Instances object
+
+                // Add the visualization panel to the container
+                visualizationPanel.removeAll();
+                visualizationPanel.setLayout(new BorderLayout());
+                visualizationPanel.add(visualizer.getPanel(), BorderLayout.CENTER);
+                visualizationPanel.revalidate();
+                visualizationPanel.repaint();
+
+                System.out.println(tree.toString()); // Print the string representation of the tree
+
+                break;
+
+                
+            case "KNN":
+                KNNClassifier knn;
+                visualizationPanel.removeAll();
+                if (customParamsRadio.isSelected()) {
+                    knn = new KNNClassifier(
+                        (int) customParameters.get("k"),
+                        (KNNClassifier.DistanceMetric) customParameters.get("metric")
+                    );
+                } else {
+                    knn = new KNNClassifier(5, KNNClassifier.DistanceMetric.EUCLIDEAN);
+                }
+
+                try {
+                    knn.train(data);
+                    resultsBuilder.append(knn.getModelSummary());
+
+                    // Prompt user for new individual input
+                    Instance newIndividual = newIndividuKNN();
+                    if (newIndividual != null) {
+                        double predictedClassIndex = knn.classifyInstance(newIndividual);
+                        String predictedClass = data.classAttribute().value((int) predictedClassIndex);
+                        JOptionPane.showMessageDialog(this, "Predicted Class for the new individual: " + predictedClass,
+                                "Classification Result", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                } catch (Exception ex) {
+                    JOptionPane.showMessageDialog(this, "Error during KNN execution: " + ex.getMessage(),
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                }
+                break;
+
+            /*
+            	case "KNN":
                     KNNClassifier knn;
+                    visualizationPanel.removeAll();
                     if (customParamsRadio.isSelected()) {
                         knn = new KNNClassifier(
                             (int) customParameters.get("k"),
@@ -657,9 +871,10 @@ public class MainWindow extends JFrame {
                     knn.train(data);
                     resultsBuilder.append(knn.getModelSummary());
                     break;
-                    
+             */       
                 case "K-means":
                     KMeansClusterer kmeans;
+                    visualizationPanel.removeAll();
                     if (customParamsRadio.isSelected() && !customParameters.isEmpty()) {
                         int numClasses = (int) customParameters.get("numClasses");
                         KMeansClusterer.DistanceMetric metric = 
@@ -688,6 +903,8 @@ public class MainWindow extends JFrame {
                     
                 case "DBSCAN":
                     DBSCANClusterer dbscan;
+                    visualizationPanel.removeAll();
+                
                     if (customParamsRadio.isSelected()) {
                         dbscan = new DBSCANClusterer(
                             (double) customParameters.get("epsilon"),
@@ -699,21 +916,43 @@ public class MainWindow extends JFrame {
                     dbscan.buildClusterer(data);
                     resultsBuilder.append(dbscan.toString());
                     break;
-                    
+
                 case "Hierarchical Clustering":
-                    CAHClusterer cah;
-                    if (customParamsRadio.isSelected()) {
-                        cah = new CAHClusterer(
-                            (int) customParameters.get("numClusters"),
-                            (int) customParameters.get("linkType")
-                        );
-                    } else {
-                        cah = new CAHClusterer(3, 1);
-                    }
-                    cah.buildClusterer(data);
-                    resultsBuilder.append(cah.getModelSummary());
-                    break;
-                    
+	                    CAHClusterer cah;
+	                    visualizationPanel.removeAll();
+	
+	                    // Configure the CAHClusterer with parameters
+	                    if (customParamsRadio.isSelected()) {
+	                        cah = new CAHClusterer(
+	                            (int) customParameters.get("numClusters"),
+	                            (int) customParameters.get("linkType")
+	                        );
+	                    } else {
+	                        cah = new CAHClusterer(3, 1); // Default: 3 clusters, COMPLETE linkage
+	                    }
+	
+	                    try {
+	                        cah.buildClusterer(data);
+	
+	                        // Append clustering results to resultsBuilder
+	                        resultsBuilder.append(cah.getModelSummary());
+	
+	                        // Visualize the dendrogram
+	                        ResultVisualizer vi = new ResultVisualizer();
+	                        JPanel dendrogramPanel = new JPanel(new BorderLayout());
+	                        vi.visualizeCAHDendrogram(data, cah, dendrogramPanel);
+	
+	                        // Add the dendrogram visualization to the main panel
+	                        visualizationPanel.setLayout(new BorderLayout());
+	                        visualizationPanel.add(dendrogramPanel, BorderLayout.CENTER);
+	                        visualizationPanel.revalidate();
+	                        visualizationPanel.repaint();
+	
+	                    } catch (Exception e) {
+	                        e.printStackTrace();
+	                        resultsBuilder.append("\nError: ").append(e.getMessage());
+	                    }
+	                    break;
                 default:
                     resultsBuilder.append("Algorithm not implemented.\n");
             }
@@ -748,7 +987,7 @@ public class MainWindow extends JFrame {
     private void showUserManual() {
         JDialog dialog = new JDialog(this, "User Manual", true);
         JTextArea manualText = new JTextArea(
-            "Weka Analysis Application User Manual\n\n" +
+            "Smart Weka Application User Manual\n\n" +
             "1. Loading Data:\n" +
             "   - Click 'Load Dataset' to import ARFF or CSV files\n" +
             "   - Data will be displayed in the table\n\n" +
@@ -773,19 +1012,30 @@ public class MainWindow extends JFrame {
 
     private void showAboutDialog() {
         JOptionPane.showMessageDialog(this,
-            "Weka Analysis Application\nVersion 1.0\n\n" +
+            "SmartWeka\nVersion 1.0\n\n" +
             "A desktop application for data analysis using Weka library.\n" +
             "Supports classification and clustering algorithms.",
             "About", JOptionPane.INFORMATION_MESSAGE);
     }
 
+    private void refresh() {
+        // Reset algorithm selections
+        algorithmTypeCombo.setSelectedIndex(0); // Reset to the first option
+        specificAlgorithmCombo.removeAllItems(); // Clear specific algorithms
+        parameterPanel.removeAll(); // Clear parameter panel
+        parameterPanel.setVisible(false); // Hide the parameter panel
+        resultsArea.setText(""); // Clear results area
+        resultsArea.setEditable(false); // Make results area non-editable
+        visualizationPanel.removeAll();
+    }
+  
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        SplashScreen splashScreen = new SplashScreen(5000); // Duration: 3 seconds
+        SplashScreen splashScreen = new SplashScreen(3000); // Duration: 3 seconds
         splashScreen.showSplash();
         
         SwingUtilities.invokeLater(() -> {

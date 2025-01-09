@@ -1,181 +1,160 @@
+
 package main.utils;
-/*
-import java.awt.*;
+
 import javax.swing.*;
-import java.awt.geom.*;
+import weka.classifiers.trees.J48;
+import weka.core.Instance;
 import weka.core.Instances;
+import weka.gui.treevisualizer.PlaceNode2;
+import weka.gui.treevisualizer.TreeVisualizer;
+import java.awt.*;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Stack;
 
-public class ResultVisualizer extends JPanel {
-    private Instances data;
-    private int[] assignments;
-    private List<Point2D> centroids;
-    private static final Color[] COLORS = {
-        new Color(31, 119, 180),   // Bleu
-        new Color(255, 127, 14),   // Orange
-        new Color(44, 160, 44),    // Vert
-        new Color(214, 39, 40),    // Rouge
-        new Color(148, 103, 189),  // Violet
-        new Color(140, 86, 75),    // Marron
-        new Color(227, 119, 194),  // Rose
-        new Color(127, 127, 127)   // Gris
-    };
-    
-    public ResultVisualizer(Instances data, int[] assignments) {
-        this.data = data;
-        this.assignments = assignments;
-        this.centroids = new ArrayList<>();
-        setPreferredSize(new Dimension(600, 400));
-    }
-    
-    public void setCentroids(List<Point2D> centroids) {
-        this.centroids = centroids;
-        repaint();
-    }
-    
-    @Override
-    protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        Graphics2D g2d = (Graphics2D) g;
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        
-        // Calculer les limites des données
-        double minX = Double.MAX_VALUE, maxX = Double.MIN_VALUE;
-        double minY = Double.MAX_VALUE, maxY = Double.MIN_VALUE;
-        
-        for (int i = 0; i < data.numInstances(); i++) {
-            double x = data.instance(i).value(0);
-            double y = data.instance(i).value(1);
-            minX = Math.min(minX, x);
-            maxX = Math.max(maxX, x);
-            minY = Math.min(minY, y);
-            maxY = Math.max(maxY, y);
-        }
-        
-        // Ajouter une marge
-        double marginX = (maxX - minX) * 0.1;
-        double marginY = (maxY - minY) * 0.1;
-        minX -= marginX;
-        maxX += marginX;
-        minY -= marginY;
-        maxY += marginY;
-        
-        // Fonction de mise à l'échelle
-        double scaleX = getWidth() / (maxX - minX);
-        double scaleY = getHeight() / (maxY - minY);
-        
-        // Dessiner les points
-        int pointSize = 10;
-        for (int i = 0; i < data.numInstances(); i++) {
-            double x = data.instance(i).value(0);
-            double y = data.instance(i).value(1);
-            
-            int screenX = (int) ((x - minX) * scaleX);
-            int screenY = (int) (getHeight() - (y - minY) * scaleY);
-            
-            g2d.setColor(COLORS[assignments[i] % COLORS.length]);
-            g2d.fillOval(screenX - pointSize/2, screenY - pointSize/2, pointSize, pointSize);
-        }
-        
-        // Dessiner les centroïdes
-        if (!centroids.isEmpty()) {
-            g2d.setStroke(new BasicStroke(2));
-            for (int i = 0; i < centroids.size(); i++) {
-                Point2D centroid = centroids.get(i);
-                int screenX = (int) ((centroid.getX() - minX) * scaleX);
-                int screenY = (int) (getHeight() - (centroid.getY() - minY) * scaleY);
-                
-                g2d.setColor(Color.BLACK);
-                g2d.drawRect(screenX - 5, screenY - 5, 10, 10);
-                g2d.setColor(COLORS[i % COLORS.length]);
-                g2d.fillRect(screenX - 4, screenY - 4, 8, 8);
-            }
-        }
-    }
-}*/
-
-
-import javax.swing.*;
+import weka.gui.hierarchyvisualizer.HierarchyVisualizer;
+import weka.gui.treevisualizer.NodePlace;
+import javax.swing.tree.DefaultMutableTreeNode;
+import javax.swing.tree.DefaultTreeModel;
 
 import main.algorithms.clustering.CAHClusterer;
-import weka.clusterers.HierarchicalClusterer;
-import weka.core.Instances;
-import weka.gui.treevisualizer.NodePlace;
-import weka.gui.treevisualizer.TreeVisualizer;
-import weka.gui.visualize.PlotData2D;
-import weka.gui.visualize.VisualizePanel;
-import java.awt.*;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
 
 public class ResultVisualizer {
+	 private JPanel panel;
 
-    private JPanel panel;
+	    public ResultVisualizer() {
+	        panel = new JPanel();
+	        panel.setLayout(new BorderLayout());
+	    }
 
-    // Constructor
-    public ResultVisualizer() {
-        panel = new JPanel(); // Initialize the JPanel
-        panel.setLayout(new BorderLayout());
-    }
+	    public JPanel getPanel() {
+	        return panel;
+	    }
 
-    public JPanel getPanel() {
-        return panel; // Provide a method to access the panel
-    }
+	    
 
-    public void visualizeDendrogram(CAHClusterer clusterer) throws Exception {
-        // Assuming CAHClusterer has a method to get the cluster assignments or dendrogram representation
-        String newickFormat = clusterer.getDendrogramNewick(); // Replace with the correct method if available
+	    
+	 // Method to visualize decision tree using Weka's J48 classifier
+	    public void visualizeDecisionTree(Instances data) {
+	        try {
+	            panel.removeAll(); // Clear previous content
 
-        // Save the Newick format to a file (optional)
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter("dendrogram.nwk"))) {
-            writer.write(newickFormat);
-            System.out.println("Dendrogram saved as 'dendrogram.nwk'");
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+	            // Create and train the J48 classifier
+	            J48 cls = new J48();
+	            cls.buildClassifier(data); // Build the classifier
 
-        // Display the Newick format
-        System.out.println("Dendrogram (Newick format):\n" + newickFormat);
-        
-        // Optionally, visualize with a specialized library if you have one
-        // Example: Some libraries like JTreeViewer can be used to visualize Newick trees
-    }
+	            // Create the tree visualizer
+	            TreeVisualizer treeVisualizer = new TreeVisualizer(null, cls.graph(), new PlaceNode2());
+	            panel.add(treeVisualizer, BorderLayout.CENTER);
 
-    public void visualizeDecisionTree(String treeString) {
-        JFrame frame = new JFrame("Decision Tree Visualization");
-        TreeVisualizer treeVisualizer = new TreeVisualizer(null, treeString, new NodePlace(800, 600));
+	            treeVisualizer.fitToScreen();
+	            // Add controls for zooming and fitting
+	            JPanel controls = new JPanel();
+	            JButton zoomIn = new JButton("+");
+	            JButton zoomOut = new JButton("-");
+	            JButton fit = new JButton("Fit");
 
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        frame.getContentPane().add(treeVisualizer);
-        frame.pack();
-        frame.setVisible(true);
-        
-        treeVisualizer.fitToScreen();
-    }
-    
-    public void visualize2DScatterPlot(Instances data) {
-        VisualizePanel vp = new VisualizePanel();
-        vp.setName("Scatter Plot");
-        
-        PlotData2D plotData = new PlotData2D(data);
-        plotData.setPlotName("2D Scatter Plot");
-        
-        try {
-            vp.addPlot(plotData);
-            panel.add(vp); // Add VisualizePanel to the main panel
-            panel.revalidate(); // Refresh the panel
-            panel.repaint(); // Repaint the panel
-            
-            JFrame frame = new JFrame("2D Scatter Plot");
-            frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            frame.getContentPane().add(panel);
-            frame.pack();
-            frame.setVisible(true);
-            vp.fitToScreen();
-        } catch (Exception e) {
-            System.err.println("Error visualizing 2D scatter plot: " + e.getMessage());
-        }
-    }
+	            zoomIn.addActionListener(e -> {
+	                Dimension size = treeVisualizer.getSize();
+	                treeVisualizer.setSize((int) (size.width * 1.2), (int) (size.height * 1.2));
+	                treeVisualizer.revalidate();
+	                treeVisualizer.repaint();
+	            });
+
+	            zoomOut.addActionListener(e -> {
+	                Dimension size = treeVisualizer.getSize();
+	                treeVisualizer.setSize((int) (size.width * 0.8), (int) (size.height * 0.8));
+	                treeVisualizer.revalidate();
+	                treeVisualizer.repaint();
+	            });
+
+	            fit.addActionListener(e -> treeVisualizer.fitToScreen());
+
+	            controls.add(zoomIn);
+	            controls.add(zoomOut);
+	            controls.add(fit);
+	            panel.add(controls, BorderLayout.SOUTH);
+
+	            // Refresh panel
+	            panel.revalidate();
+	            panel.repaint();
+
+	            treeVisualizer.fitToScreen(); // Fit the visualizer to the screen
+	        } catch (Exception e) {
+	            System.err.println("Error visualizing decision tree: " + e.getMessage());
+	            e.printStackTrace();
+	        }
+	    }
+
+	    public static void visualizeCAHDendrogram(Instances data, CAHClusterer cahClusterer, JPanel targetPanel) {
+	        try {
+	            // Build the clusterer with the provided dataset
+	            cahClusterer.buildClusterer(data);
+
+	            // Retrieve the Newick tree
+	            String newickTree = cahClusterer.getDendrogramNewick();
+	            System.out.println("Newick Tree:\n" + newickTree);
+
+	            // Create the HierarchyVisualizer and add it to the target panel
+	            HierarchyVisualizer visualizer = new HierarchyVisualizer(newickTree);
+	            targetPanel.add(visualizer, BorderLayout.CENTER);
+
+	        } catch (Exception e) {
+	            System.err.println("Error during dendrogram visualization: " + e.getMessage());
+	            e.printStackTrace();
+	        }
+	    }
+
+	    public static void visualizeCAHDendrogram(Instances data, CAHClusterer cahClusterer) {
+	        try {
+	            // Step 1: Build the clusterer with the provided dataset
+	            cahClusterer.buildClusterer(data);
+
+	            // Step 2: Retrieve the Newick tree
+	            String newickTree = cahClusterer.getDendrogramNewick();
+	            System.out.println("Newick Tree:\n" + newickTree);
+
+	            // Step 3: Visualize the dendrogram using HierarchyVisualizer
+	           // JFrame frame = new JFrame("CAH Dendrogram Visualization");
+	            HierarchyVisualizer visualizer = new HierarchyVisualizer(newickTree);
+
+	
+	        } catch (Exception e) {
+	            System.err.println("Error during dendrogram visualization: " + e.getMessage());
+	            e.printStackTrace();
+	        }
+	    }
+	    
+	    
+
+
+	    private void addControlButtons(JPanel controls, TreeVisualizer visualizer) {
+	        JButton zoomIn = new JButton("+");
+	        JButton zoomOut = new JButton("-");
+	        JButton fit = new JButton("Fit");
+	        
+	        zoomIn.addActionListener(e -> {
+	            Dimension size = visualizer.getSize();
+	            visualizer.setSize((int)(size.width * 1.2), (int)(size.height * 1.2));
+	            visualizer.revalidate();
+	            visualizer.repaint();
+	        });
+	        
+	        zoomOut.addActionListener(e -> {
+	            Dimension size = visualizer.getSize();
+	            visualizer.setSize((int)(size.width * 0.8), (int)(size.height * 0.8));
+	            visualizer.revalidate();
+	            visualizer.repaint();
+	        });
+	        
+	        fit.addActionListener(e -> visualizer.fitToScreen());
+	        
+	        controls.add(zoomIn);
+	        controls.add(zoomOut);
+	        controls.add(fit);
+	    } 
+	    
+	    
+
 }
