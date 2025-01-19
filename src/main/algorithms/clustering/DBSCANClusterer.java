@@ -23,6 +23,12 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
     private int[] clusterAssignments; // Cluster assignments for instances
     private int numClusters;       // Number of clusters
     private DistanceFunction distanceFunction; // Distance function for instance distance calculations
+    private PointType[] pointTypes; // Types of points
+
+    // Enum to represent point types
+    private static enum PointType {
+        CORE, BORDER, NOISE
+    }
 
     public DBSCANClusterer() {
         // Default constructor
@@ -52,6 +58,7 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
 
         // Initialize assignments and clusters
         clusterAssignments = new int[data.numInstances()];
+        pointTypes = new PointType[data.numInstances()];
         numClusters = 0;
 
         // Initialize the distance function with the dataset
@@ -66,10 +73,18 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
 
                 if (neighbors.size() < minPoints) {
                     clusterAssignments[i] = -1; // Mark as noise
+                    pointTypes[i] = PointType.NOISE;
                 } else {
                     numClusters++;
                     expandCluster(data, i, neighbors, visited);
                 }
+            }
+        }
+
+        // Determine border points
+        for (int i = 0; i < data.numInstances(); i++) {
+            if (clusterAssignments[i] != -1 && pointTypes[i] == null) {
+                pointTypes[i] = PointType.BORDER;
             }
         }
     }
@@ -90,6 +105,8 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
 
     private void expandCluster(Instances data, int index, List<Integer> neighbors, boolean[] visited) {
         clusterAssignments[index] = numClusters; // Assign cluster number
+        pointTypes[index] = PointType.CORE; // Mark as core
+
         for (int i = 0; i < neighbors.size(); i++) {
             int neighborIndex = neighbors.get(i);
 
@@ -99,6 +116,9 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
 
                 if (neighborNeighbors.size() >= minPoints) {
                     neighbors.addAll(neighborNeighbors); // Add to neighbors if it's a core point
+                    pointTypes[neighborIndex] = PointType.CORE;
+                } else {
+                    pointTypes[neighborIndex] = PointType.BORDER;
                 }
             }
 
@@ -130,12 +150,24 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
         return distribution;
     }
 
-    /* Technical information for the algorithm
     @Override
-    public String getTechnicalInformation() {
-        return "This is a DBSCAN clustering algorithm implementation.";
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("DBSCAN Clustering Algorithm\n");
+        sb.append("Epsilon: ").append(epsilon).append("\n");
+        sb.append("Minimum Points: ").append(minPoints).append("\n");
+        sb.append("Number of clusters: ").append(numClusters).append("\n");
+        sb.append("Cluster Assignments and Point Types:\n");
+
+        for (int i = 0; i < clusterAssignments.length; i++) {
+            sb.append("Instance ").append(i).append(": Cluster ")
+              .append(clusterAssignments[i]).append(", Type ")
+              .append(pointTypes[i]).append("\n");
+        }
+
+        return sb.toString();
     }
-*/
+
     @Override
     public String[] getOptions() {
         return new String[]{
@@ -158,18 +190,8 @@ public class DBSCANClusterer extends AbstractClusterer implements OptionHandler,
     }
 
     @Override
-    public String toString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("DBSCAN Clustering Algorithm\n");
-        sb.append("Epsilon: ").append(epsilon).append("\n");
-        sb.append("Minimum Points: ").append(minPoints).append("\n");
-        sb.append("Number of clusters: ").append(numClusters).append("\n");
-        return sb.toString();
+    public TechnicalInformation getTechnicalInformation() {
+        // Implement technical information if necessary
+        return null;
     }
-
-	@Override
-	public TechnicalInformation getTechnicalInformation() {
-		// TODO Auto-generated method stub
-		return null;
-	}
 }
